@@ -5,8 +5,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.utils import resample
 from collections import defaultdict
 
-from datasets import get_dataset
-from models import get_model, get_features
+from ucsf_pdgm.datasets import get_dataset
+from ucsf_pdgm.models import get_model, get_features
 
 
 class EmbeddingDataset(Dataset):
