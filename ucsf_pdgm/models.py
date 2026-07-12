@@ -3,26 +3,23 @@ from transformers import ViTModel, ViTImageProcessor
 
 
 def get_model(model_id):
-    """Loads a pretrained model + matching processor, and freezes the model."""
+ 
     processor = ViTImageProcessor.from_pretrained(model_id)
     model = ViTModel.from_pretrained(model_id)
     for param in model.parameters():
         param.requires_grad = False
+    model.processor = processor  # attached so get_features(model, layer, X) is self-contained
     return model, processor
 
 
-def get_features(model, processor, layer, X, device="cpu"):
-    """
-    Extracts features from a given layer for input X.
+def get_features(model, layer, X):
 
-    X: a single PIL image, or a list of PIL images (e.g. one volume's slices).
-    layer: which output to use — currently supports "cls" (CLS token).
-    Returns: a single feature vector (mean-pooled across all images in X if a list).
-    """
     if not isinstance(X, list):
         X = [X]
 
-    model = model.to(device)
+    device = next(model.parameters()).device
+    processor = model.processor
+
     tokens = []
     for image in X:
         image = image.convert("RGB")

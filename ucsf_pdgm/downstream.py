@@ -1,9 +1,6 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
-from sklearn.model_selection import train_test_split
-from sklearn.utils import resample
-from collections import defaultdict
 
 from ucsf_pdgm.datasets import get_dataset
 from ucsf_pdgm.models import get_model, get_features
@@ -21,48 +18,23 @@ class EmbeddingDataset(Dataset):
         return self.embeddings[idx], self.labels[idx]
 
 
-def _build_splits(volumes, allowed_labels=None, n_train=70, n_val=10, n_test=10, seed=42):
-    if allowed_labels is not None:
-        volumes = {
-            vid: v for vid, v in volumes.items()
-            if (v["label"] in allowed_labels) or (not v["label"] and "" in allowed_labels)
-        }
+def downstream(model_id, dataset_id):
 
-    by_label = defaultdict(list)
-    for vid, v in volumes.items():
-        by_label[v["label"] if v["label"] else ""].append(v)
+    epochs, lr, batch_size = 30, 1e-3, 32
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    checkpoint_path = "checkpoint.pt"
 
-    train, val, test = [], [], []
-    for label, vids in by_label.items():
-        trainval, t = train_test_split(vids, test_size=n_test, random_state=seed)
-        tr, v = train_test_split(trainval, test_size=n_val, random_state=seed)
-        tr = resample(tr, replace=True, n_samples=n_train, random_state=seed)
-        train.extend(tr)
-        val.extend(v)
-        test.extend(t)
-    return train, val, test
+    train_v = get_dataset(dataset_id, "train")
+    val_v = get_dataset(dataset_id, "val")
+    test_v = get_dataset(dataset_id, "test")
 
-
-def downstream(model_id, dataset_id, allowed_labels=None, epochs=30, lr=1e-3,
-               batch_size=32, device=None, checkpoint_path="checkpoint.pt"):
-    """
-    Runs the full pipeline: load data, load model, extract features,
-    train a linear classifier, evaluate, and save a checkpoint.
-
-    Returns: the checkpoint dict.
-    """
-    device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-
-    volumes = get_dataset(dataset_id, split="train")
-    train_v, val_v, test_v = _build_splits(volumes, allowed_labels=allowed_labels)
-
-    model, processor = get_model(model_id)
+    model, _ = get_model(model_id)
     model = model.to(device)
 
     def embed(vids):
         embs, labs = [], []
         for v in vids:
-            embs.append(get_features(model, processor, "cls", v["slices"], device=device))
+            embs.append(get_features(model, "cls", v["slices"]))
             labs.append(v["label"] if v["label"] else "")
         return embs, labs
 
